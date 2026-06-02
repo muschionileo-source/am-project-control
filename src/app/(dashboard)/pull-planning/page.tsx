@@ -62,8 +62,13 @@ function TimelineCard({ card, onClick }: { card: PlanCard; onClick: () => void }
       <div className="p-1 h-full flex flex-col justify-between overflow-hidden">
         <p className={cn('text-[9px] font-semibold leading-tight truncate', cfg.color)}>{card.title}</p>
         <div className="flex items-center justify-between">
-          <div className="w-5 h-5 rounded-full bg-am-navy/20 flex items-center justify-center">
-            <span className="text-[8px] font-bold text-am-navy">{card.responsible.slice(0, 2)}</span>
+          <div className="flex items-center gap-1">
+            <div className="w-5 h-5 rounded-full bg-am-navy/20 flex items-center justify-center">
+              <span className="text-[8px] font-bold text-am-navy">{card.responsible.slice(0, 2)}</span>
+            </div>
+            {card.predecessorId && (
+              <span title="Possui predecessora" className="text-[9px] text-gray-400">🔗</span>
+            )}
           </div>
           {card.status === 'in_progress' && (
             <span className="text-[8px] font-bold text-am-navy uppercase">Em And.</span>
@@ -77,12 +82,13 @@ function TimelineCard({ card, onClick }: { card: PlanCard; onClick: () => void }
 // ── Add Card Modal ──────────────────────────────────────────────────
 interface AddCardModalProps {
   packages: WorkPackage[]
+  allCards: PlanCard[]
   projectStartDate: string
   onClose: () => void
   onAdd: (card: Omit<PlanCard, 'id'>) => void
 }
 
-function AddCardModal({ packages, projectStartDate, onClose, onAdd }: AddCardModalProps) {
+function AddCardModal({ packages, allCards, projectStartDate, onClose, onAdd }: AddCardModalProps) {
   const [form, setForm] = useState({
     title: '',
     discipline: 'civil' as Discipline,
@@ -92,6 +98,7 @@ function AddCardModal({ packages, projectStartDate, onClose, onAdd }: AddCardMod
     duration: 3,
     observations: '',
     status: 'pending' as PlanCard['status'],
+    predecessorId: '',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -110,6 +117,7 @@ function AddCardModal({ packages, projectStartDate, onClose, onAdd }: AddCardMod
       observations: form.observations,
       status: form.status,
       projectId: packages.find(p => p.id === form.packageId)?.projectId ?? '',
+      predecessorId: form.predecessorId || undefined,
     })
     onClose()
   }
@@ -221,6 +229,21 @@ function AddCardModal({ packages, projectStartDate, onClose, onAdd }: AddCardMod
                 className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy"
               />
             </div>
+          </div>
+
+          {/* Predecessor */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Predecessora</label>
+            <select
+              value={form.predecessorId}
+              onChange={e => setForm(f => ({ ...f, predecessorId: e.target.value }))}
+              className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy bg-white"
+            >
+              <option value="">— Nenhuma —</option>
+              {allCards.map(c => (
+                <option key={c.id} value={c.id}>{c.title}</option>
+              ))}
+            </select>
           </div>
 
           {/* Observations */}
@@ -354,7 +377,8 @@ function AddLineModal({ projectId, projectStartDate, projectEndDate, onClose, on
 }
 
 // ── Card Detail Modal ───────────────────────────────────────────────
-function CardDetailModal({ card, onClose, onDelete }: { card: PlanCard; onClose: () => void; onDelete: () => void }) {
+function CardDetailModal({ card, allCards, onClose, onDelete }: { card: PlanCard; allCards: PlanCard[]; onClose: () => void; onDelete: () => void }) {
+  const predecessor = card.predecessorId ? allCards.find(c => c.id === card.predecessorId) : null
   const cfg = disciplineConfig[card.discipline]
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -390,6 +414,15 @@ function CardDetailModal({ card, onClose, onDelete }: { card: PlanCard; onClose:
               <p className="font-semibold text-gray-800">{card.duration} dia{card.duration !== 1 ? 's' : ''}</p>
             </div>
           </div>
+          {predecessor && (
+            <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
+              <span className="text-sm">🔗</span>
+              <div>
+                <p className="text-[10px] text-blue-400 uppercase">Predecessora</p>
+                <p className="font-semibold text-blue-800 text-xs">{predecessor.title}</p>
+              </div>
+            </div>
+          )}
           {card.observations && (
             <div>
               <p className="text-[10px] text-gray-400 uppercase mb-1">Observações</p>
@@ -460,6 +493,7 @@ export default function PullPlanningPage() {
             projectId: c.project_id,
             status: c.status,
             observations: c.observations ?? '',
+            predecessorId: c.predecessor_id ?? undefined,
           })),
         })),
       }))
@@ -509,6 +543,7 @@ export default function PullPlanningPage() {
       project_id: cardData.projectId,
       status: cardData.status,
       observations: cardData.observations ?? '',
+      predecessor_id: cardData.predecessorId ?? null,
     })
     const newCard: PlanCard = { ...cardData, id }
     setProjects(prev => prev.map(p => p.id === project.id
@@ -930,6 +965,7 @@ export default function PullPlanningPage() {
       {showAddModal && (
         <AddCardModal
           packages={allPackages}
+          allCards={allPackages.flatMap(p => p.cards)}
           projectStartDate={project.startDate}
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddCard}
@@ -947,6 +983,7 @@ export default function PullPlanningPage() {
       {selectedCard && (
         <CardDetailModal
           card={selectedCard}
+          allCards={allPackages.flatMap(p => p.cards)}
           onClose={() => setSelectedCard(null)}
           onDelete={() => handleDeleteCard(selectedCard)}
         />

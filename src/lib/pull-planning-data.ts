@@ -11,6 +11,7 @@ export interface PlanCard {
   projectId: string
   status: 'pending' | 'in_progress' | 'completed' | 'restricted'
   observations?: string
+  predecessorId?: string  // ID do card predecessora
 }
 
 export interface WorkPackage {
