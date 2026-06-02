@@ -472,6 +472,17 @@ export default function PullPlanningPage() {
   useEffect(() => { loadProjects() }, [loadProjects])
 
   const project = projects.find(p => p.id === selectedProjectId) ?? projects[0]
+
+  // Guard: aguarda dados carregarem
+  if (dbLoading || !project) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 text-gray-400">
+        <div className="w-8 h-8 border-2 border-am-navy/30 border-t-am-navy rounded-full animate-spin" />
+        <p className="text-sm">Carregando dados...</p>
+      </div>
+    )
+  }
+
   const totalDays = horizonte * 7
   const startDate = new Date(project.startDate)
   const weeks = buildWeeks(startDate, totalDays)
@@ -562,15 +573,6 @@ export default function PullPlanningPage() {
     { id: 'grafico', label: 'Gráfico', count: null },
     { id: 'desvios', label: 'Desvios', count: 0 },
   ]
-
-  if (dbLoading || !project) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 text-gray-400">
-        <div className="w-8 h-8 border-2 border-am-navy/30 border-t-am-navy rounded-full animate-spin" />
-        <p className="text-sm">Carregando dados...</p>
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col h-full">
