@@ -125,9 +125,9 @@ function AddCardModal({ packages, allCards, projectStartDate, onClose, onAdd }: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
         {/* Modal header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100" style={{ background: '#1B3461' }}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0" style={{ background: '#1B3461' }}>
           <div>
             <h3 className="font-bold text-white">Novo Card</h3>
             <p className="text-xs text-white/50">Adicionar atividade ao pull planning</p>
@@ -137,7 +137,7 @@ function AddCardModal({ packages, allCards, projectStartDate, onClose, onAdd }: 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Title */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Título da Atividade *</label>
