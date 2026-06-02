@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { AuditProvider } from '@/contexts/AuditContext'
 import './globals.css'
 
 const inter = Inter({
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className={inter.variable}>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider><AuditProvider>{children}</AuditProvider></AuthProvider>
       </body>
     </html>
   )

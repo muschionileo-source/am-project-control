@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
   ChevronDown, ChevronRight, Crosshair, CalendarDays,
-  List, Activity, AlertTriangle, BarChart2, TrendingUp, AlertOctagon
+  List, Activity, AlertTriangle, BarChart2, TrendingUp, AlertOctagon, Shield
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 
 const planejamentoItems = [
   { href: '/pull-planning', label: 'Pull Planning', icon: CalendarDays },
@@ -19,8 +20,10 @@ const UNITS = ['Todas as unidades', 'Rio Verde', 'Dourados', 'São Paulo', 'Curi
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { user } = useAuth()
   const [planejamentoOpen, setPlanejamentoOpen] = useState(true)
   const [unit, setUnit] = useState('Todas as unidades')
+  const isAdmin = user?.id === 'admin'
 
   return (
     <aside className="w-56 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm shrink-0">
@@ -96,6 +99,23 @@ export function Sidebar() {
             </div>
           )}
         </div>
+        {/* Auditoria — admin only */}
+        {isAdmin && (
+          <div className="mt-2 border-t border-gray-100 pt-2">
+            <Link
+              href="/auditoria"
+              className={cn(
+                'flex items-center gap-2.5 px-3 py-2 text-sm font-medium transition-colors mx-2 rounded-md',
+                pathname === '/auditoria'
+                  ? 'bg-am-blue-pale text-am-navy'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+              )}
+            >
+              <Shield className={cn('w-4 h-4 shrink-0', pathname === '/auditoria' ? 'text-am-navy' : 'text-gray-400')} />
+              Auditoria
+            </Link>
+          </div>
+        )}
       </nav>
     </aside>
   )

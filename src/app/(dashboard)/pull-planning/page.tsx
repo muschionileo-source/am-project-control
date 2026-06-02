@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   Plus, Users, MapPin, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight,
   X, CalendarDays, Check, BarChart2, List, Activity, TrendingUp, Layers
@@ -10,6 +10,9 @@ import {
   type PullProject, type WorkPackage, type PlanCard, type Discipline
 } from '@/lib/pull-planning-data'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
+import { useAudit } from '@/contexts/AuditContext'
 
 // ── Timeline helpers ────────────────────────────────────────────────
 const CELL_W = 44 // px per day column
@@ -409,8 +412,11 @@ function CardDetailModal({ card, onClose, onDelete }: { card: PlanCard; onClose:
 
 // ── Main Page ───────────────────────────────────────────────────────
 export default function PullPlanningPage() {
-  const [projects, setProjects] = useState<PullProject[]>(initialProjects)
-  const [selectedProjectId, setSelectedProjectId] = useState(initialProjects[0].id)
+  const { user, isGuest } = useAuth()
+  const { logChange } = useAudit()
+  const [projects, setProjects] = useState<PullProject[]>([])
+  const [dbLoading, setDbLoading] = useState(true)
+  const [selectedProjectId, setSelectedProjectId] = useState('')
   const [activeTab, setActiveTab] = useState<'board' | 'cards' | 'atividades' | 'restricoes' | 'dashboard' | 'grafico' | 'desvios'>('board')
   const [horizonte, setHorizonte] = useState(6)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -418,6 +424,52 @@ export default function PullPlanningPage() {
   const [selectedCard, setSelectedCard] = useState<PlanCard | null>(null)
   const [activeDisciplines, setActiveDisciplines] = useState<Set<Discipline>>(new Set())
   const timelineRef = useRef<HTMLDivElement>(null)
+
+  // ── Load from Supabase ──────────────────────────────────────────
+  const loadProjects = useCallback(async () => {
+    setDbLoading(true)
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*, packages:packages(*, cards:cards(*))')
+    if (error || !data || data.length === 0) {
+      // Fallback to initial mock data
+      setProjects(initialProjects)
+      setSelectedProjectId(initialProjects[0].id)
+    } else {
+      const transformed: PullProject[] = data.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        location: p.location ?? '',
+        startDate: p.start_date,
+        endDate: p.end_date,
+        team: Number(p.team) || 0,
+        packages: (p.packages ?? []).map((pkg: any) => ({
+          id: pkg.id,
+          name: pkg.name,
+          projectId: pkg.project_id,
+          startDate: p.start_date,
+          endDate: p.end_date,
+          cards: (pkg.cards ?? []).map((c: any) => ({
+            id: c.id,
+            title: c.title,
+            discipline: c.discipline as Discipline,
+            responsible: c.responsible,
+            startDay: c.start_day,
+            duration: c.duration,
+            packageId: c.package_id,
+            projectId: c.project_id,
+            status: c.status,
+            observations: c.observations ?? '',
+          })),
+        })),
+      }))
+      setProjects(transformed)
+      setSelectedProjectId(transformed[0].id)
+    }
+    setDbLoading(false)
+  }, [])
+
+  useEffect(() => { loadProjects() }, [loadProjects])
 
   const project = projects.find(p => p.id === selectedProjectId) ?? projects[0]
   const totalDays = horizonte * 7
@@ -433,8 +485,21 @@ export default function PullPlanningPage() {
   const visibleCards = (cards: PlanCard[]) =>
     activeDisciplines.size === 0 ? cards : cards.filter(c => activeDisciplines.has(c.discipline))
 
-  const handleAddCard = (cardData: Omit<PlanCard, 'id'>) => {
-    const newCard: PlanCard = { ...cardData, id: `c${Date.now()}` }
+  const handleAddCard = async (cardData: Omit<PlanCard, 'id'>) => {
+    const id = `c${Date.now()}`
+    await supabase.from('cards').insert({
+      id,
+      title: cardData.title,
+      discipline: cardData.discipline,
+      responsible: cardData.responsible,
+      start_day: cardData.startDay,
+      duration: cardData.duration,
+      package_id: cardData.packageId,
+      project_id: cardData.projectId,
+      status: cardData.status,
+      observations: cardData.observations ?? '',
+    })
+    const newCard: PlanCard = { ...cardData, id }
     setProjects(prev => prev.map(p => p.id === project.id
       ? {
         ...p,
@@ -445,17 +510,27 @@ export default function PullPlanningPage() {
       }
       : p
     ))
+    const pkgName = project.packages.find(p => p.id === cardData.packageId)?.name ?? ''
+    await logChange('Adicionou card', 'card', cardData.title, `Linha: ${pkgName}`)
   }
 
-  const handleAddLine = (pkgData: Omit<WorkPackage, 'id' | 'cards'>) => {
-    const newPkg: WorkPackage = { ...pkgData, id: `pkg${Date.now()}`, cards: [] }
+  const handleAddLine = async (pkgData: Omit<WorkPackage, 'id' | 'cards'>) => {
+    const id = `pkg${Date.now()}`
+    await supabase.from('packages').insert({
+      id,
+      project_id: pkgData.projectId,
+      name: pkgData.name,
+    })
+    const newPkg: WorkPackage = { ...pkgData, id, cards: [] }
     setProjects(prev => prev.map(p => p.id === project.id
       ? { ...p, packages: [...p.packages, newPkg] }
       : p
     ))
+    await logChange('Adicionou linha', 'package', pkgData.name, `Projeto: ${project.name}`)
   }
 
-  const handleDeleteCard = (card: PlanCard) => {
+  const handleDeleteCard = async (card: PlanCard) => {
+    await supabase.from('cards').delete().eq('id', card.id)
     setProjects(prev => prev.map(p => p.id === project.id
       ? {
         ...p,
@@ -466,6 +541,7 @@ export default function PullPlanningPage() {
       }
       : p
     ))
+    await logChange('Removeu card', 'card', card.title, '')
     setSelectedCard(null)
   }
 
@@ -486,6 +562,15 @@ export default function PullPlanningPage() {
     { id: 'grafico', label: 'Gráfico', count: null },
     { id: 'desvios', label: 'Desvios', count: 0 },
   ]
+
+  if (dbLoading || !project) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 text-gray-400">
+        <div className="w-8 h-8 border-2 border-am-navy/30 border-t-am-navy rounded-full animate-spin" />
+        <p className="text-sm">Carregando dados...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -624,21 +709,28 @@ export default function PullPlanningPage() {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <button
-              onClick={() => setShowAddLineModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold border border-am-navy text-am-navy transition-all hover:bg-am-blue-pale"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Linha
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold text-white transition-all hover:brightness-110"
-              style={{ background: '#1B3461' }}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Card
-            </button>
+            {!isGuest && (
+              <>
+                <button
+                  onClick={() => setShowAddLineModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold border border-am-navy text-am-navy transition-all hover:bg-am-blue-pale"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Linha
+                </button>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded text-xs font-bold text-white transition-all hover:brightness-110"
+                  style={{ background: '#1B3461' }}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Card
+                </button>
+              </>
+            )}
+            {isGuest && (
+              <span className="text-xs text-gray-400 italic">Visitante — somente leitura</span>
+            )}
           </div>
         </div>
       )}
