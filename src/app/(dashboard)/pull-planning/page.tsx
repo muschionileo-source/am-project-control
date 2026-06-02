@@ -443,6 +443,68 @@ function CardDetailModal({ card, allCards, onClose, onDelete }: { card: PlanCard
   )
 }
 
+// ── New Project Modal ───────────────────────────────────────────────
+function NewProjectModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: { name: string; location: string; startDate: string; endDate: string; team: number }) => void }) {
+  const [form, setForm] = useState({ name: '', location: '', startDate: '', endDate: '', team: 1 })
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name.trim() || !form.startDate || !form.endDate) return
+    onAdd(form)
+    onClose()
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100" style={{ background: '#1B3461' }}>
+          <div>
+            <h3 className="font-bold text-white">Novo Projeto</h3>
+            <p className="text-xs text-white/50">Preencha os dados do projeto</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Nome do Projeto *</label>
+            <input type="text" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Ex: Rio Verde - Entrega 30%" className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Localização</label>
+              <input type="text" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                placeholder="Ex: Rio Verde, GO" className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Equipe (pessoas)</label>
+              <input type="number" min={1} value={form.team} onChange={e => setForm(f => ({ ...f, team: parseInt(e.target.value) || 1 }))}
+                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Data de Início *</label>
+              <input type="date" required value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))}
+                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Data de Fim *</label>
+              <input type="date" required value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))}
+                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-am-navy/30 focus:border-am-navy" />
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 h-9 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
+            <button type="submit" className="flex-1 h-9 rounded-lg text-xs font-bold text-white transition-all hover:brightness-110" style={{ background: '#1B3461' }}>
+              + Criar Projeto
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ───────────────────────────────────────────────────────
 export default function PullPlanningPage() {
   const { user, isGuest } = useAuth()
@@ -454,6 +516,8 @@ export default function PullPlanningPage() {
   const [horizonte, setHorizonte] = useState(6)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showAddLineModal, setShowAddLineModal] = useState(false)
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false)
+  const [showDeleteProjectConfirm, setShowDeleteProjectConfirm] = useState(false)
   const [selectedCard, setSelectedCard] = useState<PlanCard | null>(null)
   const [activeDisciplines, setActiveDisciplines] = useState<Set<Discipline>>(new Set())
   const timelineRef = useRef<HTMLDivElement>(null)
@@ -464,10 +528,13 @@ export default function PullPlanningPage() {
     const { data, error } = await supabase
       .from('projects')
       .select('*, packages:packages(*, cards:cards(*))')
-    if (error || !data || data.length === 0) {
-      // Fallback to initial mock data
-      setProjects(initialProjects)
-      setSelectedProjectId(initialProjects[0].id)
+    if (error) {
+      console.error('Supabase error:', error)
+      setProjects([])
+      setSelectedProjectId('')
+    } else if (!data || data.length === 0) {
+      setProjects([])
+      setSelectedProjectId('')
     } else {
       const transformed: PullProject[] = data.map((p: any) => ({
         id: p.id,
@@ -507,12 +574,50 @@ export default function PullPlanningPage() {
 
   const project = projects.find(p => p.id === selectedProjectId) ?? projects[0]
 
+  const handleCreateProject = async (data: { name: string; location: string; startDate: string; endDate: string; team: number }) => {
+    const id = `p${Date.now()}`
+    await supabase.from('projects').insert({
+      id, name: data.name, location: data.location,
+      start_date: data.startDate, end_date: data.endDate, team: data.team,
+    })
+    const newProject: PullProject = { id, ...data, packages: [] }
+    setProjects(prev => [...prev, newProject])
+    setSelectedProjectId(id)
+    await logChange('Criou projeto', 'project', data.name, data.location)
+  }
+
   // Guard: aguarda dados carregarem
-  if (dbLoading || !project) {
+  if (dbLoading) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 text-gray-400">
         <div className="w-8 h-8 border-2 border-am-navy/30 border-t-am-navy rounded-full animate-spin" />
         <p className="text-sm">Carregando dados...</p>
+      </div>
+    )
+  }
+
+  // Estado vazio — nenhum projeto cadastrado
+  if (!project) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-6 text-gray-400">
+        <div className="text-center space-y-2">
+          <CalendarDays className="w-12 h-12 mx-auto text-gray-300" />
+          <h3 className="text-lg font-semibold text-gray-600">Nenhum projeto cadastrado</h3>
+          <p className="text-sm">Crie o primeiro projeto para começar o Pull Planning</p>
+        </div>
+        {!isGuest && (
+          <button
+            onClick={() => setShowNewProjectModal(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-white hover:brightness-110 transition-all"
+            style={{ background: '#1B3461' }}
+          >
+            <Plus className="w-4 h-4" />
+            Criar Primeiro Projeto
+          </button>
+        )}
+        {showNewProjectModal && (
+          <NewProjectModal onClose={() => setShowNewProjectModal(false)} onAdd={handleCreateProject} />
+        )}
       </div>
     )
   }
@@ -591,6 +696,16 @@ export default function PullPlanningPage() {
     setSelectedCard(null)
   }
 
+  const handleDeleteProject = async () => {
+    if (!project) return
+    await supabase.from('projects').delete().eq('id', project.id)
+    await logChange('Removeu projeto', 'project', project.name, '')
+    const remaining = projects.filter(p => p.id !== project.id)
+    setProjects(remaining)
+    setSelectedProjectId(remaining[0]?.id ?? '')
+    setShowDeleteProjectConfirm(false)
+  }
+
   const toggleDiscipline = (d: Discipline) => {
     setActiveDisciplines(prev => {
       const next = new Set(prev)
@@ -628,12 +743,23 @@ export default function PullPlanningPage() {
           </select>
 
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => setShowNewProjectModal(true)}
             className="flex items-center gap-1.5 text-xs font-semibold border border-am-navy text-am-navy px-2.5 py-1 rounded-md hover:bg-am-blue-pale transition-colors"
           >
             <Plus className="w-3 h-3" />
             Novo
           </button>
+
+          {!isGuest && projects.length > 0 && (
+            <button
+              onClick={() => setShowDeleteProjectConfirm(true)}
+              className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-600 px-2 py-1 rounded-md hover:bg-red-50 transition-colors border border-red-200"
+              title="Excluir projeto atual"
+            >
+              <X className="w-3 h-3" />
+              Excluir
+            </button>
+          )}
 
           <div className="ml-auto flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1 text-xs text-gray-500">
@@ -987,6 +1113,28 @@ export default function PullPlanningPage() {
           onClose={() => setSelectedCard(null)}
           onDelete={() => handleDeleteCard(selectedCard)}
         />
+      )}
+      {showNewProjectModal && (
+        <NewProjectModal onClose={() => setShowNewProjectModal(false)} onAdd={handleCreateProject} />
+      )}
+      {showDeleteProjectConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteProjectConfirm(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="font-bold text-gray-900">Excluir projeto?</h3>
+            <p className="text-sm text-gray-500">
+              Isso vai apagar permanentemente <span className="font-semibold text-gray-800">"{project.name}"</span> com todas as linhas e cards. Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteProjectConfirm(false)} className="flex-1 h-9 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleDeleteProject} className="flex-1 h-9 rounded-lg text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors">
+                Sim, excluir
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
