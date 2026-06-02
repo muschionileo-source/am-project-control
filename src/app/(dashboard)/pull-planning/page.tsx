@@ -694,11 +694,9 @@ export default function PullPlanningPage() {
           </div>
 
           <div className="flex items-center gap-1">
-            <button className="p-1.5 rounded text-gray-400 hover:bg-gray-100 transition-colors"><ChevronLeft className="w-3.5 h-3.5" /><ChevronLeft className="w-3.5 h-3.5 -ml-2" /></button>
             <button className="p-1.5 rounded text-gray-400 hover:bg-gray-100 transition-colors"><ChevronLeft className="w-3.5 h-3.5" /></button>
             <button className="px-3 py-1 text-xs font-semibold border border-gray-200 rounded hover:bg-gray-50 transition-colors">Hoje</button>
             <button className="p-1.5 rounded text-gray-400 hover:bg-gray-100 transition-colors"><ChevronRight className="w-3.5 h-3.5" /></button>
-            <button className="p-1.5 rounded text-gray-400 hover:bg-gray-100 transition-colors"><ChevronRight className="w-3.5 h-3.5" /><ChevronRight className="w-3.5 h-3.5 -ml-2" /></button>
           </div>
 
           <div className="flex items-center gap-1.5 border-l border-gray-200 pl-3">
